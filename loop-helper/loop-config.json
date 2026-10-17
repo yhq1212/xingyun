@@ -1,0 +1,21 @@
+{
+  "urls": [
+    "https://download.codebuddy.cn/workbuddy/saas/win32-x64-user/WorkBuddy-win32-x64-user-5.8.2.41111488-b8f6c953.exe"
+  ],
+  "dir": "r:\\downloads",
+  "out": "",
+  "options": {},
+  "maxCount": 0,
+  "intervalSeconds": 1,
+  "randomDelay": false,
+  "deleteAfterComplete": true,
+  "stopOnError": true,
+  "endAction": "none",
+  "endActionScript": "",
+  "endActionScriptArgs": "",
+  "endActionOnlyOnSuccess": true,
+  "multiMode": "independent",
+  "notify": false,
+  "autoStart": false,
+  "concurrent": false
+}

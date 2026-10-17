@@ -1,0 +1,427 @@
+<section class="content-header">
+    <h1><i class="fa fa-refresh"></i> <span ng-bind="'Loop Download' | translate"></span></h1>
+</section>
+
+<section class="content">
+    <div class="loop-wrap">
+
+        <div class="alert alert-warning" ng-if="!helperUrl">
+            <i class="fa fa-warning"></i>
+            <b ng-bind="'Helper not configured' | translate"></b>
+            <span ng-bind="'Helper not configured hint' | translate"></span>
+        </div>
+
+        <div class="alert alert-danger" ng-if="helperUrl && helperOffline">
+            <i class="fa fa-chain-broken"></i>
+            <b ng-bind="'Helper offline' | translate"></b>
+            <span ng-bind="'Helper offline hint' | translate"></span>
+        </div>
+
+        <div class="loop-layout">
+
+            <!-- ============ 左栏：状态 + 配置 ============ -->
+            <div class="loop-col loop-col-left">
+
+                <!-- ================= 状态大卡片 ================= -->
+                <div class="loop-hero" ng-class="heroClass()">
+            <div class="loop-hero-icon">
+                <i class="fa" ng-class="heroIcon()"></i>
+            </div>
+            <div class="loop-hero-body">
+                <div class="loop-hero-title" ng-switch="status.phase">
+                    <span ng-switch-when="idle" ng-bind="'Idle' | translate"></span>
+                    <span ng-switch-when="downloading" ng-bind="'Downloading' | translate"></span>
+                    <span ng-switch-when="deleting" ng-bind="'Deleting Files' | translate"></span>
+                    <span ng-switch-when="waiting" ng-bind="'Waiting' | translate"></span>
+                    <span ng-switch-when="finished" ng-bind="'Finished' | translate"></span>
+                    <span ng-switch-when="error" ng-bind="'Error' | translate"></span>
+                    <span ng-switch-when="stopped" ng-bind="'Stopped' | translate"></span>
+                </div>
+
+                <div class="loop-hero-round" ng-if="status.phase !== 'idle'">
+                    <span ng-bind="roundLabel()"></span>
+                </div>
+
+                <div class="loop-progress" ng-if="status.phase === 'downloading' || status.phase === 'deleting'">
+                    <div class="loop-progress-bar" ng-style="{width: progressPercent() + '%'}"></div>
+                    <span class="loop-progress-text" ng-bind="progressPercent() + '%'"></span>
+                </div>
+
+                <div class="loop-hero-meta">
+                    <span ng-if="currentSpeedText()">
+                        <i class="fa fa-bolt"></i> <span ng-bind="currentSpeedText()"></span>
+                    </span>
+                    <span ng-if="elapsedText()">
+                        <i class="fa fa-clock-o"></i> <span ng-bind="elapsedText()"></span>
+                    </span>
+                    <span ng-if="taskCount() > 0">
+                        <i class="fa fa-files-o"></i> <span ng-bind="taskCount()"></span>
+                    </span>
+                    <span ng-if="status.lanDevices > 0 && status.running" class="loop-hero-lan">
+                        <i class="fa fa-users"></i> <span ng-bind="translate('Other LAN devices', {count: status.lanDevices})"></span>
+                    </span>
+                    <span class="loop-hero-error" ng-if="status.lastError">
+                        <i class="fa fa-exclamation-triangle"></i> <span ng-bind="status.lastError"></span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- 操作按钮：固定在状态卡右侧，无需滚动即可见 -->
+            <div class="loop-hero-actions">
+                <button type="button" class="btn btn-success loop-btn-main" ng-if="!status.running"
+                        ng-click="startLoop()" ng-disabled="!loopConfig.urls">
+                    <i class="fa fa-play"></i> <span ng-bind="'Start loop' | translate"></span>
+                </button>
+                <button type="button" class="btn btn-danger loop-btn-main" ng-if="status.running"
+                        ng-click="stopLoop()">
+                    <i class="fa fa-stop"></i> <span ng-bind="'Stop loop' | translate"></span>
+                </button>
+                <div class="loop-hero-sub">
+                    <button type="button" class="btn btn-sm btn-default" ng-click="saveConfig()">
+                        <i class="fa fa-save"></i> <span ng-bind="'Save settings' | translate"></span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-default loop-btn-danger" ng-click="cleanupAll()"
+                            ng-disabled="ui.cleaningUp">
+                        <i class="fa fa-eraser"></i> <span ng-bind="'Cleanup all' | translate"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 当前任务进度 ================= -->
+        <div class="loop-card loop-task-list" ng-if="status.tasks.length > 0 && status.phase !== 'idle' && status.phase !== 'finished'">
+            <div class="loop-task" ng-repeat="t in status.tasks">
+                <div class="loop-task-row">
+                    <span class="loop-task-name" ng-bind="taskDisplayName(t)" title="{{t.url}}"></span>
+                    <span class="loop-task-round" ng-if="t.round" ng-bind="taskRoundLabel(t)"></span>
+                    <span class="loop-task-status" ng-bind="taskStatusText(t)"></span>
+                </div>
+                <div class="loop-task-bar"><div class="loop-task-bar-fill" ng-class="{'done': (t.progress || 0) >= 100}" ng-style="{width: (t.progress || 0) + '%'}"></div></div>
+                <div class="loop-task-meta">
+                    <span ng-bind="(t.progress || 0) + '%'"></span>
+                    <span ng-if="t.speed > 0"><i class="fa fa-bolt"></i> <span ng-bind="(t.speed | readableVolume) + '/s'"></span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 第 1 步 ================= -->
+        <div class="loop-card">
+            <div class="loop-step-title"><span class="loop-step-no">1</span> <span ng-bind="'Step 1: Paste download links' | translate"></span></div>
+            <textarea class="form-control loop-urls" rows="4" ng-model="loopConfig.urls"
+                      placeholder="https://example.com/file.zip"></textarea>
+            <div class="loop-hint" ng-bind="'One link per line' | translate"></div>
+
+            <div class="loop-multi" ng-if="multiLinkCount() > 1">
+                <div class="loop-multi-title" ng-bind="'How to handle multiple links' | translate"></div>
+                <div class="radio radio-primary">
+                    <input id="loopModeIndependent" type="radio" value="independent"
+                           ng-model="loopConfig.multiMode" ng-change="onMultiModeChange('independent')" />
+                    <label for="loopModeIndependent" ng-bind="'Each link loops independently (finished ones restart right away)' | translate"></label>
+                </div>
+                <div class="radio radio-primary">
+                    <input id="loopModeSeparate" type="radio" value="separate"
+                           ng-model="loopConfig.multiMode" ng-change="onMultiModeChange('separate')" />
+                    <label for="loopModeSeparate" ng-bind="'Download each link as a separate file (one by one)' | translate"></label>
+                </div>
+                <div class="radio radio-primary">
+                    <input id="loopModeConcurrent" type="radio" value="concurrent"
+                           ng-model="loopConfig.multiMode" ng-change="onMultiModeChange('concurrent')" />
+                    <label for="loopModeConcurrent" ng-bind="'Download each link as a separate file (all at once)' | translate"></label>
+                </div>
+                <div class="radio radio-primary">
+                    <input id="loopModeMirror" type="radio" value="mirror"
+                           ng-model="loopConfig.multiMode" ng-change="onMultiModeChange('mirror')" />
+                    <label for="loopModeMirror" ng-bind="'Treat all links as mirrors of the same file' | translate"></label>
+                </div>
+                <div class="loop-hint" ng-if="loopConfig.multiMode === 'mirror'" ng-bind="'Mirror hint' | translate"></div>
+            </div>
+        </div>
+
+        <!-- ================= 第 2 步 ================= -->
+        <div class="loop-card">
+            <div class="loop-step-title"><span class="loop-step-no">2</span> <span ng-bind="'Step 2: Choose where to save' | translate"></span></div>
+            <div class="input-group">
+                <span class="input-group-addon"><i class="fa fa-folder-open-o"></i></span>
+                <input type="text" class="form-control" ng-model="loopConfig.dir"
+                       placeholder="D:\downloads" />
+                <span class="input-group-btn">
+                    <button type="button" class="btn btn-default" ng-click="openFolder()" ng-disabled="!loopConfig.dir">
+                        <i class="fa fa-external-link"></i> <span ng-bind="'Open folder' | translate"></span>
+                    </button>
+                </span>
+            </div>
+            <div class="loop-hint" ng-bind="'Save folder hint' | translate"></div>
+        </div>
+
+        <!-- ================= 第 3 步 ================= -->
+        <div class="loop-card">
+            <div class="loop-step-title"><span class="loop-step-no">3</span> <span ng-bind="'Step 3: How many rounds?' | translate"></span></div>
+
+            <div class="loop-presets">
+                <button type="button" class="btn btn-default" ng-class="{'active btn-primary': loopConfig.maxCount === 1}" ng-click="setCount(1)" ng-bind="'Once' | translate"></button>
+                <button type="button" class="btn btn-default" ng-class="{'active btn-primary': loopConfig.maxCount === 10}" ng-click="setCount(10)" ng-bind="'Ten rounds' | translate"></button>
+                <button type="button" class="btn btn-default" ng-class="{'active btn-primary': loopConfig.maxCount === 0}" ng-click="setCount(0)" ng-bind="'Forever' | translate"></button>
+            </div>
+
+            <div class="row loop-inline-fields">
+                <div class="col-sm-6">
+                    <label ng-bind="'Rounds (0 = unlimited)' | translate"></label>
+                    <input type="number" min="0" class="form-control" ng-model="loopConfig.maxCount" />
+                </div>
+                <div class="col-sm-6">
+                    <label ng-bind="'Interval (seconds)' | translate"></label>
+                    <input type="number" min="0" step="0.5" class="form-control" ng-model="loopConfig.intervalSeconds" />
+                </div>
+            </div>
+            <div class="loop-hint" ng-if="multiLinkCount() > 1 && loopConfig.multiMode === 'independent'"
+                 ng-bind="'Independent rounds hint' | translate"></div>
+        </div>
+
+        <!-- ================= 更多设置 ================= -->
+        <div class="loop-panel">
+            <div class="loop-panel-title" ng-click="togglePanel('advanced')">
+                <i class="fa" ng-class="ui.showAdvanced ? 'fa-caret-down' : 'fa-caret-right'"></i>
+                <span ng-bind="'More options' | translate"></span>
+            </div>
+            <div class="loop-panel-body" ng-show="ui.showAdvanced">
+                <div class="checkbox checkbox-primary">
+                    <input id="loopDeleteAfterComplete" type="checkbox" ng-model="loopConfig.deleteAfterComplete" />
+                    <label for="loopDeleteAfterComplete" ng-bind="'Delete local file after each round' | translate"></label>
+                </div>
+                <div class="checkbox checkbox-primary">
+                    <input id="loopStopOnError" type="checkbox" ng-model="loopConfig.stopOnError" />
+                    <label for="loopStopOnError" ng-bind="'Stop when a download fails' | translate"></label>
+                </div>
+                <div class="checkbox checkbox-primary">
+                    <input id="loopRandomDelay" type="checkbox" ng-model="loopConfig.randomDelay" />
+                    <label for="loopRandomDelay" ng-bind="'Interval randomization' | translate"></label>
+                </div>
+                <div class="checkbox checkbox-primary">
+                    <input id="loopAutoStart" type="checkbox" ng-model="loopConfig.autoStart" />
+                    <label for="loopAutoStart" ng-bind="'Start automatically with helper' | translate"></label>
+                </div>
+                <div class="checkbox checkbox-primary">
+                    <input id="loopNotify" type="checkbox" ng-model="loopConfig.notify" />
+                    <label for="loopNotify" ng-bind="'Notify when finished' | translate"></label>
+                </div>
+
+                <hr />
+
+                <div class="row">
+                    <div class="col-sm-6">
+                        <label ng-bind="'File name (optional)' | translate"></label>
+                        <input type="text" class="form-control" ng-model="loopConfig.out"
+                               placeholder="file.zip" />
+                        <div class="loop-hint" ng-bind="'File name hint' | translate"></div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label ng-bind="'End action' | translate"></label>
+                        <select class="form-control" ng-model="loopConfig.endAction">
+                            <option value="none" ng-bind="'None' | translate"></option>
+                            <option value="shutdown" ng-bind="'Shutdown' | translate"></option>
+                            <option value="hibernate" ng-bind="'Hibernate' | translate"></option>
+                            <option value="sleep" ng-bind="'Sleep' | translate"></option>
+                            <option value="logout" ng-bind="'Logout' | translate"></option>
+                            <option value="close-aria2" ng-bind="'Close aria2' | translate"></option>
+                            <option value="script" ng-bind="'Run external script' | translate"></option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="checkbox checkbox-primary" style="margin-top:10px;">
+                    <input id="loopEndActionOnlyOnSuccess" type="checkbox" ng-model="loopConfig.endActionOnlyOnSuccess" />
+                    <label for="loopEndActionOnlyOnSuccess" ng-bind="'Only run end action on success' | translate"></label>
+                </div>
+
+                <div class="loop-script-box" ng-if="loopConfig.endAction === 'script'">
+                    <label ng-bind="'Script path' | translate"></label>
+                    <input type="text" class="form-control" ng-model="loopConfig.endActionScript"
+                           placeholder="D:\scripts\after-download.bat" />
+                    <label style="margin-top:8px;" ng-bind="'Script arguments (optional)' | translate"></label>
+                    <input type="text" class="form-control" ng-model="loopConfig.endActionScriptArgs" />
+                </div>
+
+                <div class="loop-test-shutdown">
+                    <button type="button" class="btn btn-warning btn-sm" ng-click="testShutdown()" ng-disabled="testingShutdown">
+                        <i class="fa fa-power-off"></i> <span ng-bind="'Test shutdown' | translate"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 局域网避让 ================= -->
+        <div class="loop-panel">
+            <div class="loop-panel-title" ng-click="togglePanel('lan')">
+                <i class="fa" ng-class="ui.showLan ? 'fa-caret-down' : 'fa-caret-right'"></i>
+                <span ng-bind="'LAN avoidance' | translate"></span>
+            </div>
+            <div class="loop-panel-body" ng-show="ui.showLan">
+                <div class="loop-hint" ng-bind="'LAN avoidance hint' | translate"></div>
+
+                <div class="checkbox checkbox-primary">
+                    <input id="loopLanCheckEnabled" type="checkbox" ng-model="loopConfig.lanCheckEnabled" />
+                    <label for="loopLanCheckEnabled" ng-bind="'Enable LAN avoidance' | translate"></label>
+                </div>
+
+                <div ng-if="loopConfig.lanCheckEnabled">
+                    <label ng-bind="'LAN mode' | translate"></label>
+                    <div class="radio radio-primary">
+                        <input id="loopLanPause" type="radio" value="pause"
+                               ng-model="loopConfig.lanMode" />
+                        <label for="loopLanPause" ng-bind="'Wait for others to go offline' | translate"></label>
+                    </div>
+                    <div class="radio radio-primary">
+                        <input id="loopLanThrottle" type="radio" value="throttle"
+                               ng-model="loopConfig.lanMode" />
+                        <label for="loopLanThrottle" ng-bind="'Limit speed when others online' | translate"></label>
+                    </div>
+                    <div class="radio radio-primary">
+                        <input id="loopLanIgnore" type="radio" value="ignore"
+                               ng-model="loopConfig.lanMode" />
+                        <label for="loopLanIgnore" ng-bind="'Download anyway (monitor only)' | translate"></label>
+                    </div>
+
+                    <div class="row loop-inline-fields" ng-if="loopConfig.lanMode === 'throttle'">
+                        <div class="col-sm-6">
+                            <label ng-bind="'Limit speed' | translate"></label>
+                            <input type="text" class="form-control" ng-model="loopConfig.lanThrottleSpeed"
+                                   placeholder="1M" />
+                            <div class="loop-hint" ng-bind="'Limit speed hint' | translate"></div>
+                        </div>
+                    </div>
+
+                    <div class="row loop-inline-fields">
+                        <div class="col-sm-6">
+                            <label ng-bind="'Check interval (seconds)' | translate"></label>
+                            <input type="number" min="1" class="form-control" ng-model="loopConfig.lanCheckInterval" />
+                        </div>
+                    </div>
+
+                    <div class="loop-test-shutdown">
+                        <button type="button" class="btn btn-info btn-sm" ng-click="scanLanNow()" ng-disabled="ui.scanningLan">
+                            <i class="fa fa-wifi"></i> <span ng-bind="'Scan now' | translate"></span>
+                        </button>
+                    </div>
+
+                    <div class="loop-lan-result" ng-if="lanScanResult">
+                        <span ng-if="lanScanResult.others > 0" class="text-warning">
+                            <i class="fa fa-exclamation-triangle"></i>
+                            <span ng-bind="translate('Other devices online', {count: lanScanResult.others})"></span>
+                        </span>
+                        <span ng-if="lanScanResult.others === 0" class="text-success">
+                            <i class="fa fa-check"></i> <span ng-bind="'No other devices' | translate"></span>
+                        </span>
+                        <ul class="loop-root-list" ng-if="lanScanResult.devices && lanScanResult.devices.length">
+                            <li ng-repeat="d in lanScanResult.devices track by $index">
+                                <i class="fa fa-desktop"></i>
+                                <span class="loop-root-path" ng-bind="d.ip + (d.mac ? '  (' + d.mac + ')' : '')" title="{{d.ip}}"></span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 安全设置：删除白名单 ================= -->
+        <div class="loop-panel">
+            <div class="loop-panel-title" ng-click="togglePanel('safety')">
+                <i class="fa" ng-class="ui.showSafety ? 'fa-caret-down' : 'fa-caret-right'"></i>
+                <span ng-bind="'Safety settings' | translate"></span>
+            </div>
+            <div class="loop-panel-body" ng-show="ui.showSafety">
+                <div class="loop-hint" ng-bind="'Whitelist hint' | translate"></div>
+
+                <ul class="loop-root-list">
+                    <li ng-repeat="root in helperSettings.allowedRoots track by $index">
+                        <i class="fa fa-folder-o"></i>
+                        <span class="loop-root-path" ng-bind="root" title="{{root}}"></span>
+                        <button type="button" class="btn btn-xs btn-default" ng-click="removeRoot($index)">
+                            <i class="fa fa-times"></i>
+                        </button>
+                    </li>
+                    <li class="loop-root-empty" ng-if="!helperSettings.allowedRoots.length"
+                        ng-bind="'Whitelist is empty' | translate"></li>
+                </ul>
+
+                <div class="input-group">
+                    <input type="text" class="form-control" ng-model="ui.newRoot"
+                           placeholder="D:\downloads" />
+                    <span class="input-group-btn">
+                        <button type="button" class="btn btn-primary" ng-click="addRoot()" ng-disabled="ui.savingRoot">
+                            <i class="fa fa-plus"></i> <span ng-bind="'Add' | translate"></span>
+                        </button>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        </div><!-- /loop-col-left -->
+
+        <!-- ============ 右栏：运行历史 + 运行日志 ============ -->
+        <div class="loop-col loop-col-right">
+
+            <!-- 运行历史 -->
+            <div class="loop-card loop-history-card">
+                <div class="loop-card-head">
+                    <span><i class="fa fa-history"></i> <span ng-bind="'Run history' | translate"></span> <small ng-bind="'Statistics' | translate"></small></span>
+                    <button type="button" class="btn btn-xs btn-default" ng-click="clearHistory()" ng-disabled="!history.length">
+                        <i class="fa fa-trash-o"></i> <span ng-bind="'Clear history' | translate"></span>
+                    </button>
+                </div>
+                <div class="loop-card-body">
+                    <div class="loop-stats" ng-if="historyStats.runs > 0">
+                        <div class="loop-stat"><div class="num" ng-bind="historyStats.runs"></div><div class="lbl" ng-bind="'Runs' | translate"></div></div>
+                        <div class="loop-stat"><div class="num" ng-bind="historyStats.rounds"></div><div class="lbl" ng-bind="'Total rounds' | translate"></div></div>
+                        <div class="loop-stat"><div class="num text-success" ng-bind="historyStats.success"></div><div class="lbl" ng-bind="'Succeeded' | translate"></div></div>
+                        <div class="loop-stat"><div class="num text-danger" ng-bind="historyStats.failed"></div><div class="lbl" ng-bind="'Failed' | translate"></div></div>
+                        <div class="loop-stat"><div class="num" ng-bind="historyStats.bytes | readableVolume"></div><div class="lbl" ng-bind="'Total downloaded' | translate"></div></div>
+                        <div class="loop-stat"><div class="num" ng-bind="historyDuration(historyStats.durationMs)"></div><div class="lbl" ng-bind="'Total time' | translate"></div></div>
+                    </div>
+                    <div class="loop-history-list">
+                        <div class="loop-history-empty" ng-if="!history.length" ng-bind="'No history yet' | translate"></div>
+                        <div class="loop-history-item" ng-repeat="h in history">
+                            <div class="loop-history-row">
+                                <span class="loop-history-date" ng-bind="historyDate(h.startedAt)"></span>
+                                <span class="loop-history-badge" ng-class="{'badge-finished': h.endReason === 'finished', 'badge-stopped': h.endReason === 'stopped', 'badge-error': h.endReason === 'error'}" ng-bind="historyReason(h.endReason)"></span>
+                                <span class="loop-history-detail">
+                                    <span ng-bind="historyRoundsLabel(h)"></span>
+                                    <span ng-if="h.totalBytes > 0"> · <span ng-bind="h.totalBytes | readableVolume"></span></span>
+                                    <span ng-if="h.durationMs"> · <span ng-bind="historyDuration(h.durationMs)"></span></span>
+                                    <span ng-if="h.urlCount > 1"> · <span ng-bind="linksLabel(h.urlCount)"></span></span>
+                                    <span ng-if="h.deleteAfterComplete"> · <span ng-bind="'auto delete' | translate"></span></span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="loop-hint" ng-bind="'History hint' | translate"></div>
+                </div>
+            </div>
+
+            <!-- 运行日志 -->
+            <div class="loop-card loop-log-card">
+                <div class="loop-card-head">
+                    <span class="loop-card-head-title"><i class="fa fa-list-alt"></i> <span ng-bind="'Run log' | translate"></span> <small ng-bind="'Newest first' | translate"></small></span>
+                    <span class="loop-log-tools">
+                        <button type="button" class="btn btn-xs btn-default" ng-click="exportLog('txt')"><i class="fa fa-file-text-o"></i> TXT</button>
+                        <button type="button" class="btn btn-xs btn-default" ng-click="exportLog('csv')"><i class="fa fa-table"></i> CSV</button>
+                        <button type="button" class="btn btn-xs btn-default" ng-click="clearLog()"><i class="fa fa-trash-o"></i> <span ng-bind="'Clear log' | translate"></span></button>
+                    </span>
+                </div>
+                <div class="loop-log">
+                    <div class="loop-log-empty" ng-if="!visibleLogs.length" ng-bind="'No logs yet' | translate"></div>
+                    <div class="loop-log-line" ng-class="{'loop-log-error': item.level === 'error'}"
+                         ng-repeat="item in visibleLogs track by $index">
+                        <span class="loop-log-time" ng-bind="item.time | date:'HH:mm:ss'"></span>
+                        <span class="loop-log-iter" ng-if="item.iteration" ng-bind="'#' + item.iteration"></span>
+                        <span class="loop-log-event" ng-bind="item.event"></span>
+                        <span class="loop-log-detail" title="{{item.detail}}" ng-bind="item.detail"></span>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /loop-col-right -->
+
+        </div><!-- /loop-layout -->
+
+    </div>
+</section>

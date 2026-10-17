@@ -1,0 +1,14 @@
+{
+  "name": "ariang-loop-helper",
+  "version": "1.0.0",
+  "description": "AriaNg 循环下载本地辅助服务：循环引擎 + 下载后删除本地文件 + 结束后自动关机/休眠",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=12"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1792243554029,
+    "startedAt": "2026-10-17T13:25:54.028Z",
+    "urlCount": 1,
+    "maxCount": 0,
+    "deleteAfterComplete": true,
+    "endAction": "none",
+    "multiMode": "independent",
+    "dir": "r:\\downloads",
+    "successRounds": 2,
+    "failedRounds": 0,
+    "totalBytes": 882344960,
+    "finishedAt": "2026-10-17T13:26:21.848Z",
+    "durationMs": 27820,
+    "endReason": "stopped",
+    "completedRounds": 2
+  }
+]

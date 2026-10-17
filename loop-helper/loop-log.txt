@@ -1,0 +1,13 @@
+{"time":"2026-10-17T06:40:44.594Z","level":"info","iteration":0,"event":"deleted","detail":"已删除 WorkBuddy-win32-x64-user-5.8.2.41111488-b8f6c953.exe"}
+{"time":"2026-10-17T06:40:44.598Z","level":"info","iteration":0,"event":"cleanup","detail":"已清空全部运行痕迹（删除文件 1 个，计数/历史/日志已重置）"}
+{"time":"2026-10-17T13:25:54.028Z","level":"info","iteration":0,"event":"loop-start","detail":"链接 1 个（单个），共 无限 次，删除=开，结束动作=none"}
+{"time":"2026-10-17T13:25:54.030Z","level":"info","iteration":1,"event":"download-start","detail":"开始第 1 次下载"}
+{"time":"2026-10-17T13:26:04.589Z","level":"info","iteration":1,"event":"download-complete","detail":"第 1 次完成"}
+{"time":"2026-10-17T13:26:04.646Z","level":"info","iteration":1,"event":"deleted","detail":"已删除 WorkBuddy-win32-x64-user-5.8.2.41111488-b8f6c953.exe"}
+{"time":"2026-10-17T13:26:04.648Z","level":"info","iteration":1,"event":"waiting","detail":"等待 1 秒后进行下一次"}
+{"time":"2026-10-17T13:26:05.660Z","level":"info","iteration":2,"event":"download-start","detail":"开始第 2 次下载"}
+{"time":"2026-10-17T13:26:14.724Z","level":"info","iteration":2,"event":"download-complete","detail":"第 2 次完成"}
+{"time":"2026-10-17T13:26:14.791Z","level":"info","iteration":2,"event":"deleted","detail":"已删除 WorkBuddy-win32-x64-user-5.8.2.41111488-b8f6c953.exe"}
+{"time":"2026-10-17T13:26:14.793Z","level":"info","iteration":2,"event":"waiting","detail":"等待 1 秒后进行下一次"}
+{"time":"2026-10-17T13:26:15.806Z","level":"info","iteration":3,"event":"download-start","detail":"开始第 3 次下载"}
+{"time":"2026-10-17T13:26:21.848Z","level":"info","iteration":3,"event":"loop-stopped","detail":"已被用户停止"}
