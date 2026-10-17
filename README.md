@@ -79,7 +79,6 @@ xingyun/
 │       ├── views/loop-download.html   # 循环下载面板模板
 │       ├── scripts/controllers/loop-download.js  # 循环下载控制器
 │       └── langs/zh_Hans.txt  # 面板中文词条（[global] 段）
-├── 项目文档/                   # 需求/设计/工作记录/部署迁移指南（详细）
 └── downloads/                 # 默认下载目录（首次启动自动创建）
 ```
 
@@ -161,6 +160,7 @@ stop → stopped（用户停止，不执行结束动作）
 - 下载完成判定：辅助服务轮询 aria2 `tellStatus` 的 `status`（`complete`/`error`/`removed`），稳健且与前端解耦。
 - 删除安全：删除前校验路径必须落在白名单根目录内（或属于 aria2 回报路径），逐个文件删除，忽略「已不存在」错误。
 - 同一时间只允许一个循环；已有任务运行时再次「开始」返回 409 拒绝。
+- 防止卡死：提供 `PER_DOWNLOAD_TIMEOUT`，长时间卡在 0 速度不会无限等待。
 
 ### 5.3 局域网避让
 
@@ -177,42 +177,59 @@ stop → stopped（用户停止，不执行结束动作）
 循环下载/删除会反复擦写 SSD。提供 `create-ramdisk.bat` / `start-ram.bat`（依赖免费 [ImDisk Toolkit](https://sourceforge.net/projects/imdisk-toolkit/)，需管理员）：把下载目录与辅助服务的工作目录放进内存盘，物理磁盘零写入、零磨损。
 
 - `start-ram.bat`：建内存盘（默认 3G，可改）→ 排除 Defender 扫描与内容索引 → 设定 `ARIA2_DIR` / `LOOP_WORK_DIR` 指向内存盘 → 启动全套服务。
-- 约定下载文件均 ≤ 2G 时最划算；内存盘重启/关机后清空，每次开机需重跑脚本。
+- 约定下载文件均 ≤ 2G 时最划算（内存盘大小建议 = 并发文件数 × 2G × 1.1，8G 内存勿超 ~5G）；内存盘重启/关机后清空，每次开机需重跑脚本。
 - 也可手动 `set ARIA2_DIR=R:\downloads` 后运行 `start.bat`。
 
 ### 5.5 清空全部运行痕迹
 
 一键「清空全部」：停止循环（等待引擎退出）→ 按已下载文件清单删除文件（含 `.aria2` 残留，逐一过白名单）→ 清零计数、清空历史/日志/任务列表，回到 idle。带确认弹窗。
 
+### 5.6 关机 / 休眠实现（跨平台）
+
+| endAction | Windows | 非 Windows |
+| --- | --- | --- |
+| shutdown 关机 | `shutdown /s /t 0` | `shutdown -h now` |
+| hibernate 休眠 | `shutdown /h` | `systemctl hibernate` |
+| sleep 睡眠 | `rundll32 powrprof.dll,SetSuspendState 0,1,0` | `systemctl suspend` |
+| logout 注销 | `shutdown /l` | `gnome-session-quit --logout` |
+| close-aria2 关 aria2 | aria2 `shutdown` RPC | 同左 |
+| script 执行脚本 | 执行指定 `.bat/.cmd/.sh/.exe`（可传参，超时 5 分钟） | 同左 |
+
+仅当循环成功完成，或 `endActionOnlyOnSuccess=false` 时才执行；`dryRun` 模式只记录不执行（先「测试关机」验证）。
+
 ---
 
 ## 六、REST API 速览（loop-helper）
 
-基础地址：`http://localhost:18888`（可用 `HELPER_PORT` 改）。所有响应为 JSON，支持 CORS。
+基础地址：`http://localhost:18888`（可用 `HELPER_PORT` 改）。所有响应为 JSON，支持 CORS（反射请求 Origin，兼容 `file://`）。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/api/health` | 健康检查 |
-| GET | `/api/lan/scan` | 手动触发局域网扫描 |
+| GET | `/api/health` | 健康检查 `{ ok:true, aria2:"host:port" }` |
+| GET | `/api/lan/scan` | 手动触发局域网扫描，返回本机网段/网关/其他设备 IP·MAC |
 | GET | `/api/loop/status` | 返回运行状态（阶段/次数/进度/速度/日志/局域网设备数…） |
-| GET/POST | `/api/loop/config` | 读取 / 保存循环配置 |
+| GET | `/api/loop/config` | 读取已保存的循环配置 |
+| POST | `/api/loop/config` | 校验并保存循环配置到 `loop-config.json` |
 | POST | `/api/loop/start` | 启动循环（会顺带保存配置；已运行返回 409） |
 | POST | `/api/loop/stop?removeTask=true` | 停止；`removeTask=true` 同时移除当前任务 |
 | POST | `/api/helper/shutdown?dryRun=true` | 关机验证（`dryRun` 默认仅记录不执行） |
-| GET/POST | `/api/loop/log/export?format=txt\|csv` | 导出全部日志 |
+| GET | `/api/loop/log/export?format=txt\|csv` | 导出全部日志（CSV 带 UTF-8 BOM） |
 | POST | `/api/loop/log/clear` | 清空内存日志 |
-| GET/POST | `/api/helper/settings` | 读取 / 更新删除白名单（立即生效） |
-| POST | `/api/helper/open-folder` | 在资源管理器中打开目录 |
-| POST | `/api/loop/history/clear` | 清空运行历史 |
-| POST | `/api/loop/cleanup` | 清空全部运行痕迹 |
+| GET/POST | `/api/helper/settings` | 读取 / 更新删除白名单（立即生效，优先级高于 `ALLOWED_ROOTS` 环境变量） |
+| POST | `/api/helper/open-folder` | 在资源管理器中打开目录（Windows `explorer` / macOS `open` / Linux `xdg-open`） |
+| POST | `/api/loop/history/clear` | 清空运行历史（保留已完成轮次计数） |
+| POST | `/api/loop/cleanup` | 清空全部运行痕迹（停止 + 删文件 + 清计数/历史/日志） |
+
+**配置字段（`loopConfig`）** 关键项：`urls`(链接数组)、`dir`(下载目录)、`out`(可选文件名)、`maxCount`(次数,0=无限)、`intervalSeconds`(间隔秒)、`randomDelay`(随机抖动)、`deleteAfterComplete`(完成后删除)、`stopOnError`(出错停止)、`multiMode`(`independent`/`separate`/`concurrent`/`mirror`)、`endAction`/`endActionScript`/`endActionScriptArgs`/`endActionOnlyOnSuccess`、`notify`、`autoStart`、`lanCheckEnabled`/`lanMode`/`lanThrottleSpeed`/`lanCheckInterval`。
 
 ---
 
 ## 七、安全注意事项
 
-- **删除白名单**：正式使用前强烈建议配置 `ALLOWED_ROOTS`（或页面「安全设置」），非白名单路径会被拒绝并记录日志（`delete-skipped`）。删除仅针对 aria2 回报的文件路径。
+- **删除白名单**：正式使用前强烈建议配置 `ALLOWED_ROOTS`（或页面「安全设置」），非白名单路径会被拒绝并记录日志（`delete-skipped`）。删除仅针对 aria2 回报的文件路径，且逐个文件校验。
 - **关机护栏**：先用「测试关机」验证命令；默认「仅成功后才关机」；关机命令仅在 localhost 本地执行，外部无法触发。
-- **跨域**：以 `file://` 打开 AriaNg 时，helper 已做 Origin 反射兼容；个别浏览器拦截时改用本地静态服务器（如 `npx serve`）。使用 `WuLiao.exe` 时界面走 `http://localhost:6688`，无此问题。
+- **跨域**：以 `file://` 打开 AriaNg 时，helper 已做 Origin 反射兼容；个别浏览器拦截时改用本地静态服务器（如 `npx serve` / `python -m http.server`）。使用 `WuLiao.exe` 时界面走 `http://localhost:6688`，无此问题。
+- **远程访问边界**：`loop-helper` 仅监听本机。若从手机/其他电脑访问 AriaNg，删除/关机动作仍发生在运行 aria2 的那台机器上，符合预期。
 
 ---
 
@@ -224,34 +241,69 @@ stop → stopped（用户停止，不执行结束动作）
    npm install
    gulp clean build-bundle
    ```
-   产物在 `AriaNg-master/dist/`，将 `dist/index.html` 覆盖根目录 `index.html`。
+   产物在 `AriaNg-master/dist/`，将 `dist/index.html` 覆盖根目录 `index.html`（浏览器 `Ctrl+F5` 强刷）。
 2. 改 `loop-helper/server.js` 只需**重启辅助服务**（重开 `WuLiao.exe` 或重跑 `start.bat`），无需构建。
-3. 重新打包 EXE（详见 `项目文档/03-部署与迁移指南.md`）：
+3. 重新打包 EXE：
    ```bat
    cd build
    npx --yes pkg@5.8.1 launcher.js --targets node18-win-x64 --assets "res/**/*" --output WuLiao.exe
    ```
 
-> ⚠️ 新增 JS 控制器/服务文件**必须**在 `src/index.html` 的 `<!-- build:js js/aria-ng.min.js -->` 块内登记，否则不会打包进 bundle（典型症状：`{{ }}` 原样显示、控件点不动）。
+> ⚠️ 新增 JS 控制器/服务文件**必须**在 `src/index.html` 的 `<!-- build:js js/aria-ng.min.js -->` 块内登记，否则不会打包进 bundle（典型症状：`{{ }}` 原样显示、控件点不动）。视图 `*.html` 与语言包会自动收集，无需登记。
+
+> ⚠️ **文案占位符**：带参数的翻译键必须写双花括号 `{{name}}`（如 `Round {{current}}=第 {{current}} 次`），写单花括号不会被替换；且带参翻译键不要写在指令属性里，应在控制器 JS 中调用 `translate(key, params)`。
 
 ---
 
-## 九、详细文档
+## 九、常见问题（FAQ）
 
-更完整的背景、接口契约、数据模型、状态机、构建流程、FAQ 见 `项目文档/`：
+**Q1：界面里看不到「循环下载」入口？**
+根 `index.html` 是旧包，未含新面板。改过源码需按第八节重新构建并覆盖；若没改源码，确认用的是根目录 `index.html` 且辅助服务已启动。
 
-- `项目文档/00-需求文档.md`：需求、边界与「用户没想到但必须设计的点」。
-- `项目文档/01-设计文档.md`：架构、目录、数据模型、API 契约、i18n、局域网避让。
-- `项目文档/02-工作记录.md`：进度、关键决策与踩坑经验。
-- `项目文档/03-部署与迁移指南.md`：部署、迁移、EXE 打包、FAQ。
+**Q2：点「开始」后提示 helper 地址未配置？**
+到「AriaNg 设置」填写 `http://localhost:18888`。
+
+**Q3：以 `file://` 打开 AriaNg 调不通 helper？**
+用 `WuLiao.exe` 则界面走 `http://localhost:6688`，不存在此问题；源码模式下 helper 已做 Origin 反射兼容，若仍被拦，用本地静态服务器打开。
+
+**Q4：删除文件没生效 / 误删风险？**
+务必设置 `ALLOWED_ROOTS` 白名单；非白名单路径会被拒绝并记录。删除仅针对 aria2 回报的文件路径。
+
+**Q5：关机没发生？**
+先点「测试关机」验证命令；确认 `endAction` 正确且（默认）循环成功完成；`endActionOnlyOnSuccess=true` 时失败不会关机。
+
+**Q6：关掉浏览器循环还在跑吗？**
+在跑。引擎在本地 `loop-helper`，与浏览器无关。注意：关闭的是「浏览器」循环照跑；**关闭 `WuLiao.exe` 窗口会连辅助服务一起停掉**。
+
+**Q7：为什么跑满次数就停了？**
+「定次数」里设定的次数就是上限。想一直跑，把次数填 `0`，或点一键预设「一直跑」。
+
+**Q8：多个链接怎么处理？**
+一行一个粘进第 1 步，会冒出「多个链接怎么处理」四选一：独立循环（默认）/ 顺序 / 并发 / 镜像。独立循环的「次数」指每个链接各自下载几遍（总次数 = 链接数 × 次数）。
+
+**Q9：日志里有 `delete-skipped`？**
+说明配了白名单，而下载目录不在白名单内。把该目录加进白名单（留空表示不限制）。
+
+**Q10：循环次数 / 历史会随重启丢失吗？**
+不会。全局「已完成轮次」存在 `loop-state.json`，重启后继续累加；运行历史存在 `loop-history.json`（最近 100 条）。持久化的是计数，正在下载的半成品任务不会断点续传。
+
+**Q11：结束动作能跑我自己的脚本吗？**
+「更多设置 → 全部结束后要做什么」选「执行外部脚本」，填脚本路径（`.bat/.cmd/.sh/.exe`）和可选参数。脚本工作目录为脚本所在目录，超时 5 分钟。
+
+**Q12：界面是英文，想要中文？**
+默认语言为英文。到「AriaNg 设置 → 语言」选「简体中文」并保存；若仍显示英文，多为浏览器缓存了旧语言设置，清掉站点数据或强刷即可。
+
+**Q13：反复下载把网速拉满了？**
+用面板里的「局域网避让」：勾选启用 → 三选一（等待离线 / 限速 / 直接下载）→ 可设检测间隔、点「立即扫描」。原理是 ping 整段 + 读 ARP，纯本地零依赖；探测失败自动放行。
 
 ---
 
 ## 十、已知限制 / 待办
 
-- 单文件 `WuLiao.exe` 打包依赖 GitHub 上的「补丁版 Node」二进制（约 64MB，境内镜像不托管），联网不便时可用项目内 Node + Windows 自带 `IExpress` 零下载兜底打包。
+- 单文件 `WuLiao.exe` 打包依赖 GitHub 上的「补丁版 Node」二进制（约 64MB，境内镜像不托管），联网不便时可用项目内 Node + Windows 自带 `IExpress` 零下载兜底打包（每次启动解压到临时目录，运行时数据应固定写到 `%LOCALAPPDATA%\WuLiao`）。
 - BT / 多文件任务的删除粒度验证、真实关机实跑验证等见工作记录待办清单。
-- 循环引擎放在本地而非纯前端，受浏览器沙箱能力限制（需求文档 4.1 已论证不可行）。
+- 循环引擎放在本地而非纯前端，受浏览器沙箱能力限制（浏览器不能删文件/关机/关页即停，已论证不可行）。
+- aria2 断线时 v1 不自动恢复循环，需用户手动重启（避免失控）。
 
 ---
 
