@@ -1,4 +1,6 @@
-# 星云 · 循环下载（WuLiao）
+# 星云压力测试（XingYun Load Test）
+
+> 基于 [AriaNg](https://github.com/mayswind/AriaNg)（aria2 的现代 Web 前端）二次开发，内置「循环下载」功能的下载工具。
 
 > 基于 [AriaNg](https://github.com/mayswind/AriaNg)（aria2 的现代 Web 前端）二次开发，内置「循环下载」功能的下载工具。
 >
@@ -88,9 +90,9 @@ xingyun/
 
 ### 方式一：单文件 EXE 交付（最终用户 / 推荐）
 
-> 把 **aria2c + loop-helper + AriaNg 前端 + Node 运行时** 打包成单个 `WuLiao.exe`，对方电脑**无需安装任何东西**，双击即用。
+> 把 **aria2c + loop-helper + AriaNg 前端 + Node 运行时** 打包成单个 `星云压力测试.exe`，对方电脑**无需安装任何东西**，双击即用。
 
-1. 把 `WuLiao.exe` 拷到任意位置，双击运行。
+1. 把 `星云压力测试.exe` 拷到任意位置，双击运行。
 2. 首次自动把内置资源解压到 `<同目录>/_wuliao_runtime/`（含 `aria2c.exe`、`loop-helper/`、`index.html`），并拉起：
    - aria2 RPC：`http://localhost:6800`
    - 辅助服务：`http://localhost:18888`
@@ -228,7 +230,7 @@ stop → stopped（用户停止，不执行结束动作）
 
 - **删除白名单**：正式使用前强烈建议配置 `ALLOWED_ROOTS`（或页面「安全设置」），非白名单路径会被拒绝并记录日志（`delete-skipped`）。删除仅针对 aria2 回报的文件路径，且逐个文件校验。
 - **关机护栏**：先用「测试关机」验证命令；默认「仅成功后才关机」；关机命令仅在 localhost 本地执行，外部无法触发。
-- **跨域**：以 `file://` 打开 AriaNg 时，helper 已做 Origin 反射兼容；个别浏览器拦截时改用本地静态服务器（如 `npx serve` / `python -m http.server`）。使用 `WuLiao.exe` 时界面走 `http://localhost:6688`，无此问题。
+- **跨域**：以 `file://` 打开 AriaNg 时，helper 已做 Origin 反射兼容；个别浏览器拦截时改用本地静态服务器（如 `npx serve` / `python -m http.server`）。使用 `星云压力测试.exe` 时界面走 `http://localhost:6688`，无此问题。
 - **远程访问边界**：`loop-helper` 仅监听本机。若从手机/其他电脑访问 AriaNg，删除/关机动作仍发生在运行 aria2 的那台机器上，符合预期。
 
 ---
@@ -242,11 +244,11 @@ stop → stopped（用户停止，不执行结束动作）
    gulp clean build-bundle
    ```
    产物在 `AriaNg-master/dist/`，将 `dist/index.html` 覆盖根目录 `index.html`（浏览器 `Ctrl+F5` 强刷）。
-2. 改 `loop-helper/server.js` 只需**重启辅助服务**（重开 `WuLiao.exe` 或重跑 `start.bat`），无需构建。
+2. 改 `loop-helper/server.js` 只需**重启辅助服务**（重开 `星云压力测试.exe` 或重跑 `start.bat`），无需构建。
 3. 重新打包 EXE：
    ```bat
    cd build
-   npx --yes pkg@5.8.1 launcher.js --targets node18-win-x64 --assets "res/**/*" --output WuLiao.exe
+   npx --yes pkg@5.8.1 launcher.js --targets node18-win-x64 --assets "res/**/*" --output 星云压力测试.exe
    ```
 
 > ⚠️ 新增 JS 控制器/服务文件**必须**在 `src/index.html` 的 `<!-- build:js js/aria-ng.min.js -->` 块内登记，否则不会打包进 bundle（典型症状：`{{ }}` 原样显示、控件点不动）。视图 `*.html` 与语言包会自动收集，无需登记。
@@ -264,7 +266,7 @@ stop → stopped（用户停止，不执行结束动作）
 到「AriaNg 设置」填写 `http://localhost:18888`。
 
 **Q3：以 `file://` 打开 AriaNg 调不通 helper？**
-用 `WuLiao.exe` 则界面走 `http://localhost:6688`，不存在此问题；源码模式下 helper 已做 Origin 反射兼容，若仍被拦，用本地静态服务器打开。
+用 `星云压力测试.exe` 则界面走 `http://localhost:6688`，不存在此问题；源码模式下 helper 已做 Origin 反射兼容，若仍被拦，用本地静态服务器打开。
 
 **Q4：删除文件没生效 / 误删风险？**
 务必设置 `ALLOWED_ROOTS` 白名单；非白名单路径会被拒绝并记录。删除仅针对 aria2 回报的文件路径。
@@ -273,7 +275,7 @@ stop → stopped（用户停止，不执行结束动作）
 先点「测试关机」验证命令；确认 `endAction` 正确且（默认）循环成功完成；`endActionOnlyOnSuccess=true` 时失败不会关机。
 
 **Q6：关掉浏览器循环还在跑吗？**
-在跑。引擎在本地 `loop-helper`，与浏览器无关。注意：关闭的是「浏览器」循环照跑；**关闭 `WuLiao.exe` 窗口会连辅助服务一起停掉**。
+在跑。引擎在本地 `loop-helper`，与浏览器无关。注意：关闭的是「浏览器」循环照跑；**关闭 `星云压力测试.exe` 窗口会连辅助服务一起停掉**。
 
 **Q7：为什么跑满次数就停了？**
 「定次数」里设定的次数就是上限。想一直跑，把次数填 `0`，或点一键预设「一直跑」。
@@ -300,7 +302,7 @@ stop → stopped（用户停止，不执行结束动作）
 
 ## 十、已知限制 / 待办
 
-- 单文件 `WuLiao.exe` 打包依赖 GitHub 上的「补丁版 Node」二进制（约 64MB，境内镜像不托管），联网不便时可用项目内 Node + Windows 自带 `IExpress` 零下载兜底打包（每次启动解压到临时目录，运行时数据应固定写到 `%LOCALAPPDATA%\WuLiao`）。
+- 单文件 `星云压力测试.exe` 打包依赖 GitHub 上的「补丁版 Node」二进制（约 64MB，境内镜像不托管），联网不便时可用项目内 Node + Windows 自带 `IExpress` 零下载兜底打包（每次启动解压到临时目录，运行时数据应固定写到 `%LOCALAPPDATA%\WuLiao`）。
 - BT / 多文件任务的删除粒度验证、真实关机实跑验证等见工作记录待办清单。
 - 循环引擎放在本地而非纯前端，受浏览器沙箱能力限制（浏览器不能删文件/关机/关页即停，已论证不可行）。
 - aria2 断线时 v1 不自动恢复循环，需用户手动重启（避免失控）。
